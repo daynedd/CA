@@ -42,19 +42,34 @@ hold on
 % Full Evolution with Harmonic Oscillator and Time-Dependent Potential
 psi_0 = psi;
 for m = 1:M
-    t = m * dt;  % Current time
+    t = (m-1) * dt;  % Current time
     % Update the potential propagator with the time-dependent potential
     V_t = A * sin(X) * cos(omega * t);
     UV_t = exp(-1i * (X.^2 / 2 + V_t) * dt / 2);  % Time-dependent potential propagator
+    
     % Split-step evolution
     psi_1 = UV_t .* psi_0;           % Apply potential part (first half step)
     phi_2 = fft(psi_1);              % Transform to momentum space
     phi_3 = UT .* phi_2;             % Apply kinetic part
-    psi_3 = ifft(phi_3);             % Transform back to position space
+    psi_3 = ifft(phi_2);             % Transform back to position space
     psi_4 = UV_t .* psi_3;           % Apply potential part (second half step)    
     psi_0 = psi_4;  % Prepare for the next cycle    
 end
 
+
+
+
+for m = 1:M
+    t = (m-1)*dt;
+    V_t = A.*sin(X)*cos(omega.*t);
+    UV_t=exp(-1i*(X.^2/2+V_t)*dt/2);
+    psi_1 = UV_t .* psi_0;
+    phi_2 = fft(psi_1);
+    phi_3 = UT .* phi_2;
+    psi_3 = ifft(phi_3);
+    psi_4 = UV_t .* psi_3;
+    psi_0 = psi_4;
+end
 psi = psi_0;  % Final state updated
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
