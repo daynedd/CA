@@ -16,8 +16,8 @@ P = (2 * pi / L) * [0:N/2-1, -N/2:-1]; % Dimensionless momentum
 T = 10 * pi;                   % Time duration of the evolution
 M = 10^3;                      % Total No. of steps in the evolution
 dt = T / M;                    % Time step
-A = 3;                        % Amplitude of the time-dependent potential
-omega = 5.0;                   % Frequency of the time-dependent potential
+A = 3;                         % Amplitude of the time-dependent potential
+omega = 2.5;                   % Frequency of the time-dependent potential (approximately half of natural frequency)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   Define vectors to store split-step propagators in position and
@@ -41,43 +41,59 @@ hold on
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Full Evolution with Harmonic Oscillator and Time-Dependent Potential
 psi_0 = psi;
+P_transition_time = zeros(1, M);  % To store transition probabilities over time
+
+% Define the first excited state using Hermite polynomial
+n_1 = 1;  % Quantum number for first excited state
+psi_hermite_1 = hermiteH(n_1, X) .* exp(-X.^2 / 2);  % Analytical form of first excited state
+psi_hermite_1 = psi_hermite_1 / sqrt(sum(abs(psi_hermite_1).^2));   % Normalized first excited state
+
 for m = 1:M
-    t = (m-1) * dt;  % Current time
+    t = m * dt;  % Current time
     % Update the potential propagator with the time-dependent potential
     V_t = A * sin(X) * cos(omega * t);
     UV_t = exp(-1i * (X.^2 / 2 + V_t) * dt / 2);  % Time-dependent potential propagator
-    
     % Split-step evolution
     psi_1 = UV_t .* psi_0;           % Apply potential part (first half step)
     phi_2 = fft(psi_1);              % Transform to momentum space
     phi_3 = UT .* phi_2;             % Apply kinetic part
-    psi_3 = ifft(phi_2);             % Transform back to position space
+    psi_3 = ifft(phi_3);             % Transform back to position space
     psi_4 = UV_t .* psi_3;           % Apply potential part (second half step)    
     psi_0 = psi_4;  % Prepare for the next cycle    
+    
+    % Calculate the transition probability to the first excited state
+    P_transition_time(m) = abs(sum(conj(psi_hermite_1) .* psi_0)).^2;
 end
 
-
-
-
-for m = 1:M
-    t = (m-1)*dt;
-    V_t = A.*sin(X)*cos(omega.*t);
-    UV_t=exp(-1i*(X.^2/2+V_t)*dt/2);
-    psi_1 = UV_t .* psi_0;
-    phi_2 = fft(psi_1);
-    phi_3 = UT .* phi_2;
-    psi_3 = ifft(phi_3);
-    psi_4 = UV_t .* psi_3;
-    psi_0 = psi_4;
-end
 psi = psi_0;  % Final state updated
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Plotting the final state profiles
-
 plot(X, abs(psi).^2, 'DisplayName', 'Full Evolution');
 
 xlabel('Position X')
 ylabel('Probability Density')
 title('Wavepacket Evolution in 1D Harmonic Trap with Time-Dependent Potential')
 legend('show', 'Location', 'southwest')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Plotting the transition probability as a function of time
+figure;
+plot((1:M) * dt, P_transition_time, 'DisplayName', 'Transition Probability');
+xlabel('Time')
+ylabel('Transition Probability')
+title('Transition Probability from Ground State to First Excited State')
+legend('show')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Analysis of Two-Photon Transitions
+% When the driving frequency is approximately half the natural frequency of the harmonic oscillator (ω ≈ 0.5 * ω_0),
+% we need to consider whether transitions from the ground state to the first excited state are due to off-resonance
+% one-photon processes or due to two-photon processes.
+% 
+% If ω ≈ 0.5, the driving field is off-resonance for direct one-photon transitions between the ground and first
+% excited states. Instead, two-photon transitions may occur, where two photons combine to provide the energy
+% needed for the transition. As we increase the driving amplitude A, the probability of nonlinear processes such
+% as two-photon transitions increases. Therefore, for ω ≈ 0.5 and large A, the transitions observed are likely due
+% to two-photon processes rather than off-resonance one-photon absorption.
+%

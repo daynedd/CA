@@ -13,11 +13,11 @@ L = b - a;                     % Width of the space
 N = 512;                       % No. of cells
 X = a + L * (0:N-1) / N;       % Dimensionless coordinates
 P = (2 * pi / L) * [0:N/2-1, -N/2:-1]; % Dimensionless momentum
-T = 5 * pi;                    % Time duration of the evolution
+T = 10 * pi;                   % Time duration of the evolution
 M = 10^3;                      % Total No. of steps in the evolution
 dt = T / M;                    % Time step
-A = 0.1;                       % Amplitude of the time-dependent potential
-omega = 1.0;                   % Frequency of the time-dependent potential
+A = 3;                         % Amplitude of the time-dependent potential
+omega = 5.0;                   % Frequency of the time-dependent potential
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   Define vectors to store split-step propagators in position and
@@ -28,97 +28,64 @@ UT = exp(-1i * (P.^2 / 2) * dt);        % One-step propagator in momentum space
 % note, hbar = 1 in our dimensionless units
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   Define the initial state as an excited state of the harmonic oscillator
-n_excited = 1;  % Set the quantum number for the desired excited state (e.g., n = 1 for the first excited state)
-psi_ho_excited = hermiteH(n_excited, X) .* exp(-X.^2 / 2);  % Harmonic oscillator eigenstate (Hermite polynomial)
-psi_ho_excited = psi_ho_excited / sqrt(sum(abs(psi_ho_excited).^2));  % Normalized initial state
+%   Define the initial state using Hermite polynomial (Analytical Eigenstate)
+%   We consider the initial state to be the ground state of the harmonic oscillator
+n = 0;  % Quantum number for ground state
+psi_hermite = hermiteH(n, X) .* exp(-X.^2 / 2);  % Analytical form of eigenstate
+psi = psi_hermite / sqrt(sum(abs(psi_hermite).^2));   % Normalized state
 
-plot(X, abs(psi_ho_excited).^2);   % Plotting initial state
+plot(X, abs(psi).^2, 'DisplayName', 'Initial State');   % Plotting initial state
+legend('IC','Location','southwest')
 hold on
 
-psi_0 = psi_ho_excited;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Full Evolution with Harmonic Oscillator and Time-Dependent Potential
+psi_0 = psi;
+P_transition_time = zeros(1, M);  % To store transition probabilities over time
+P_total_time = zeros(1, M);       % To store total probability over time
+
+% Define the first excited state using Hermite polynomial
+n_1 = 1;  % Quantum number for first excited state
+psi_hermite_1 = hermiteH(n_1, X) .* exp(-X.^2 / 2);  % Analytical form of first excited state
+psi_hermite_1 = psi_hermite_1 / sqrt(sum(abs(psi_hermite_1).^2));   % Normalized first excited state
+
 for m = 1:M
     t = m * dt;  % Current time
     % Update the potential propagator with the time-dependent potential
     V_t = A * sin(X) * cos(omega * t);
-    UV_t = exp(-1i * V_t * dt / 2);  % Time-dependent potential propagator
-    
+    UV_t = exp(-1i * (X.^2 / 2 + V_t) * dt / 2);  % Time-dependent potential propagator
     % Split-step evolution
     psi_1 = UV_t .* psi_0;           % Apply potential part (first half step)
     phi_2 = fft(psi_1);              % Transform to momentum space
     phi_3 = UT .* phi_2;             % Apply kinetic part
     psi_3 = ifft(phi_3);             % Transform back to position space
-    psi_4 = UV_t .* psi_3;           % Apply potential part (second half step)
-    
+    psi_4 = UV_t .* psi_3;           % Apply potential part (second half step)    
     psi_0 = psi_4;  % Prepare for the next cycle    
+    
+    % Calculate the transition probability to the first excited state
+    P_transition_time(m) = abs(sum(conj(psi_hermite_1) .* psi_0)).^2;
+    % Calculate the total probability
+    P_total_time(m) = sum(abs(psi_0).^2);
 end
 
 psi = psi_0;  % Final state updated
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   Projection onto eigenstates of the harmonic oscillator
-n_max = 5;  % Maximum number of eigenstates to consider
-coefficients = zeros(1, n_max);
+% Plotting the final state profiles
+plot(X, abs(psi).^2, 'DisplayName', 'Full Evolution');
 
-for n = 0:n_max-1
-    % Calculate the nth eigenstate of the harmonic oscillator
-    psi_n = hermiteH(n, X) .* exp(-X.^2 / 2);
-    psi_n = psi_n / sqrt(sum(abs(psi_n).^2));  % Normalize the eigenstate
-    
-    % Project the final wavefunction onto the nth eigenstate
-    coefficients(n+1) = sum(conj(psi_n) .* psi) * (X(2) - X(1));
-end
-
-% Plotting the projection coefficients
-figure;
-stem(0:n_max-1, abs(coefficients).^2);
-xlabel('Eigenstate Index n');
-ylabel('Projection Probability |<ψ_n|ψ>|^2');
-title('Projection of Final State onto Harmonic Oscillator Eigenstates');
+xlabel('Position X')
+ylabel('Probability Density')
+title('Wavepacket Evolution in 1D Harmonic Trap with Time-Dependent Potential')
+legend('show', 'Location', 'southwest')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   Compare results with first-order time-dependent perturbation theory
-%   with and without rotating-wave approximation
-omega_resonance = 1.0;  % Natural frequency of the harmonic oscillator
-transition_probabilities = zeros(1, M);
-
-psi_0 = psi_ho_excited;
-for m = 1:M
-    t = m * dt;  % Current time
-    % Update the potential propagator with the time-dependent potential
-    V_t = A * sin(X) * cos(omega * t);
-    UV_t = exp(-1i * V_t * dt / 2);  % Time-dependent potential propagator
-    
-    % Split-step evolution
-    psi_1 = UV_t .* psi_0;           % Apply potential part (first half step)
-    phi_2 = fft(psi_1);              % Transform to momentum space
-    phi_3 = UT .* phi_2;             % Apply kinetic part
-    psi_3 = ifft(phi_3);             % Transform back to position space
-    psi_4 = UV_t .* psi_3;           % Apply potential part (second half step)
-    
-    psi_0 = psi_4;  % Prepare for the next cycle
-    
-    % Project onto the first excited state (n = 1)
-    psi_1_state = hermiteH(1, X) .* exp(-X.^2 / 2);
-    psi_1_state = psi_1_state / sqrt(sum(abs(psi_1_state).^2));  % Normalize
-    transition_probabilities(m) = abs(sum(conj(psi_1_state) .* psi_0) * (X(2) - X(1)))^2;
-end
-
 % Plotting the transition probability as a function of time
 figure;
-plot((1:M) * dt, transition_probabilities);
-xlabel('Time');
-ylabel('Transition Probability to First Excited State');
-title('Transition Probability from Initial Excited State to First Excited State Over Time');
+plot((1:M) * dt, P_transition_time, 'DisplayName', 'Transition Probability');
+xlabel('Time')
+ylabel('Transition Probability')
+title('Transition Probability from Ground State to First Excited State')
+legend('show')
 
-% Analyzing results with and without rotating-wave approximation
-% First-order time-dependent perturbation theory predicts a linear dependence of the transition
-% probability on time for small amplitudes A. For large A, deviations are expected.
-figure;
-plot((1:M) * dt, transition_probabilities, 'b');
-hold on;
-plot((1:M) * dt, (A^2 / 4) * sin(omega_resonance * (1:M) * dt).^2, 'r--');
-xlabel('Time');
-ylabel('Transition Probability');
-legend('Numerical Simulation', 'First-Order Perturbation Theory');
-title('Comparison of Numerical Simulation with First-Order Perturbation Theory');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
