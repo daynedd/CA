@@ -13,10 +13,10 @@ L = b - a;                     % Width of the space
 N = 512;                       % No. of cells
 X = a + L * (0:N-1) / N;       % Dimensionless coordinates
 P = (2 * pi / L) * [0:N/2-1, -N/2:-1]; % Dimensionless momentum
-T = 5 * pi;                   % Time duration of the evolution
+T = 5 * pi;                    % Time duration of the evolution
 M = 10^3;                      % Total No. of steps in the evolution
 dt = T / M;                    % Time step
-A = 10;                        % Amplitude of the time-dependent potential
+A = 0.1;                       % Amplitude of the time-dependent potential
 omega = 5.0;                   % Frequency of the time-dependent potential
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -36,31 +36,31 @@ sigma = 1.0;  % sigma is the width of the initial wavepacket
 psiprep = exp(-(X - X0).^2 / (2 * sigma^2));  % Gaussian state
 psi = psiprep / sqrt(sum(abs(psiprep).^2));   % Normalized state
 
-plot(X, abs(psi).^2, 'DisplayName', 'Initial State');   % Plotting initial state
+plot(X, abs(psi).^2);   % Plotting initial state
 legend('IC','Location','southwest')
+
 hold on
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Harmonic Oscillator Perturbation Only
-psii_0 = psi;
+%HO pertubation
+psii_0=psi;
 for m = 1:M
-    psi_1 = UV .* psii_0;
-    phi_2 = fft(psi_1);   % Wavefunction in momentum space
-    phi_3 = UT .* phi_2;
+    psi_1 = UV.*psii_0;
+    phi_2 = fft(psi_1);   %wavefunction in momentum space
+    phi_3 = UT.*phi_2;
     psi_3 = ifft(phi_3);
-    psi_4 = UV .* psi_3;
-    psii_0 = psi_4; % Prepare a new cycle    
+    psi_4 = UV.*psi_3;
+    psii_0 = psi_4; %prepare a new cycle    
 end
-psiii = psii_0; % Final state updated 
-
+psiii =psii_0; %final state updated 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Full Evolution with Harmonic Oscillator and Time-Dependent Potential
+%everything 
+
 psi_0 = psi;
 for m = 1:M
     t = m * dt;  % Current time
     % Update the potential propagator with the time-dependent potential
     V_t = A * sin(X) * cos(omega * t);
-    UV_t = exp(-1i * (X.^2 / 2 + V_t) * dt / 2);  % Time-dependent potential propagator
+    UV_t = exp(-1i * V_t * dt / 2);  % Time-dependent potential propagator
     
     % Split-step evolution
     psi_1 = UV_t .* psi_0;           % Apply potential part (first half step)
@@ -69,17 +69,21 @@ for m = 1:M
     psi_3 = ifft(phi_3);             % Transform back to position space
     psi_4 = UV_t .* psi_3;           % Apply potential part (second half step)
     
+    
     psi_0 = psi_4;  % Prepare for the next cycle    
 end
 
 psii = psi_0;  % Final state updated
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Plotting the final state profiles
-plot(X, abs(psiii).^2, 'DisplayName', 'HO Perturbation');
-plot(X, abs(psii).^2, 'DisplayName', 'Full Evolution');
+
+plot(X, abs(psiii).^2)  % Plotting the final state profile
+legend('OH','Location','southwest')
+plot(X, abs(psii).^2)  % Plotting the final state profile
+
+legend('ALL','Location','southwest')
 
 xlabel('Position X')
 ylabel('Probability Density')
 title('Wavepacket Evolution in 1D Harmonic Trap with Time-Dependent Potential')
-legend('show', 'Location', 'southwest')
+legend('Initial State', 'Final State')

@@ -1,7 +1,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   Numerical simulation of the evolution of a wavepacket in a 1D harmonic
 %   trap with an added time-dependent potential using fast Fourier transform (FFT) method
-%   Potential: V(t) = A * sin(x) * cos(ω * t)
+%   Potential: V(t) = A * sin(x) * cos(omega * t)
 %   Unit of energy: hbar * omega, where hbar is the Planck constant and
 %   omega is the frequency of the trap
 %   Unit of length: l = sqrt(hbar / (m * omega)), where sqrt(...) is the square
@@ -13,18 +13,18 @@ L = b - a;                     % Width of the space
 N = 512;                       % No. of cells
 X = a + L * (0:N-1) / N;       % Dimensionless coordinates
 P = (2 * pi / L) * [0:N/2-1, -N/2:-1]; % Dimensionless momentum
-T = 5 * pi;                   % Time duration of the evolution
+T = 5 * pi;                    % Time duration of the evolution
 M = 10^3;                      % Total No. of steps in the evolution
 dt = T / M;                    % Time step
-A = 10;                        % Amplitude of the time-dependent potential
-omega = 5.0;                   % Frequency of the time-dependent potential
+A = 0.1;                         % Amplitude of the time-dependent potential
+omega = 5.0;                  % Frequency of the time-dependent potential
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   Define vectors to store split-step propagators in position and
 %   momentum space
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-UV = exp(-1i * (X.^2 / 2) * dt / 2);    % One-step propagator in position space (harmonic potential)
-UT = exp(-1i * (P.^2 / 2) * dt);        % One-step propagator in momentum space
+UV_harmonic = exp(-1i * (X.^2 / 2) * dt / 2);    % One-step propagator in position space (harmonic potential)
+UT = exp(-1i * (P.^2 / 2) * dt);                 % One-step propagator in momentum space
 % note, hbar = 1 in our dimensionless units
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -37,49 +37,31 @@ psiprep = exp(-(X - X0).^2 / (2 * sigma^2));  % Gaussian state
 psi = psiprep / sqrt(sum(abs(psiprep).^2));   % Normalized state
 
 plot(X, abs(psi).^2, 'DisplayName', 'Initial State');   % Plotting initial state
-legend('IC','Location','southwest')
 hold on
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Harmonic Oscillator Perturbation Only
-psii_0 = psi;
-for m = 1:M
-    psi_1 = UV .* psii_0;
-    phi_2 = fft(psi_1);   % Wavefunction in momentum space
-    phi_3 = UT .* phi_2;
-    psi_3 = ifft(phi_3);
-    psi_4 = UV .* psi_3;
-    psii_0 = psi_4; % Prepare a new cycle    
-end
-psiii = psii_0; % Final state updated 
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Full Evolution with Harmonic Oscillator and Time-Dependent Potential
-psi_0 = psi;
+% Combined Evolution: Harmonic Oscillator Potential and Time-Dependent Perturbation
 for m = 1:M
     t = m * dt;  % Current time
     % Update the potential propagator with the time-dependent potential
     V_t = A * sin(X) * cos(omega * t);
-    UV_t = exp(-1i * (X.^2 / 2 + V_t) * dt / 2);  % Time-dependent potential propagator
+    UV_harmonic_t = exp(-1i * V_t * dt / 2); % Time-dependent potential propagator
     
-    % Split-step evolution
-    psi_1 = UV_t .* psi_0;           % Apply potential part (first half step)
-    phi_2 = fft(psi_1);              % Transform to momentum space
-    phi_3 = UT .* phi_2;             % Apply kinetic part
-    psi_3 = ifft(phi_3);             % Transform back to position space
-    psi_4 = UV_t .* psi_3;           % Apply potential part (second half step)
+    % Split-step evolution with both harmonic and time-dependent perturbation
+    psi_1 = UV_harmonic .* UV_harmonic_t .* psi;  % Apply combined potential part (first half step)
+    phi_2 = fft(psi_1);          % Transform to momentum space
+    phi_3 = UT .* phi_2;         % Apply kinetic part
+    psi_3 = ifft(phi_3);         % Transform back to position space
+    psi_4 = UV_harmonic .* UV_harmonic_t .* psi_3;  % Apply combined potential part (second half step)
     
-    psi_0 = psi_4;  % Prepare for the next cycle    
+    psi = psi_4;  % Prepare for the next cycle    
 end
 
-psii = psi_0;  % Final state updated
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Plotting the final state profiles
-plot(X, abs(psiii).^2, 'DisplayName', 'HO Perturbation');
-plot(X, abs(psii).^2, 'DisplayName', 'Full Evolution');
+% Plotting the final state profile
+plot(X, abs(psi).^2, 'DisplayName', 'Combined Perturbation');
 
 xlabel('Position X')
 ylabel('Probability Density')
-title('Wavepacket Evolution in 1D Harmonic Trap with Time-Dependent Potential')
+title('Wavepacket Evolution in 1D Harmonic Trap with Combined Perturbation')
 legend('show', 'Location', 'southwest')
