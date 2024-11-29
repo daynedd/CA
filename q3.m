@@ -9,15 +9,16 @@
 %--------------------------------------------------------------------------
 a = -20;                       % Left end point 
 b = +20;                       % Right end point 
+%% 
 L = b - a;                     % Width of the space
 N = 512;                       % No. of cells
 X = a + L * (0:N-1) / N;       % Dimensionless coordinates
 P = (2 * pi / L) * [0:N/2-1, -N/2:-1]; % Dimensionless momentum
-T = 10 * pi;                   % Time duration of the evolution
+T = 200 * pi;                   % Time duration of the evolution
 M = 10^3;                      % Total No. of steps in the evolution
 dt = T / M;                    % Time step
-A = 3;                         % Amplitude of the time-dependent potential
-omega = 5.0;                   % Frequency of the time-dependent potential
+A = 0.1;                         % Amplitude of the time-dependent potential
+omega =1.1;                   % Frequency of the time-dependent potential
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   Define vectors to store split-step propagators in position and
@@ -69,7 +70,7 @@ psi = psi_0;  % Final state updated
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Plotting the final state profiles
-plot(X, abs(psi).^2, 'DisplayName', 'Full Evolution');
+plot(X, abs(psi).^2, 'DisplayName', 'Final state');
 
 xlabel('Position X')
 ylabel('Probability Density')

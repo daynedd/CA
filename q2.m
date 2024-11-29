@@ -16,8 +16,8 @@ P = (2 * pi / L) * [0:N/2-1, -N/2:-1]; % Dimensionless momentum
 T = 10 * pi;                   % Time duration of the evolution
 M = 10^3;                      % Total No. of steps in the evolution
 dt = T / M;                    % Time step
-A = 3;                        % Amplitude of the time-dependent potential
-omega = 5.0;                   % Frequency of the time-dependent potential
+A = 0.5;                        % Amplitude of the time-dependent potential
+omega = 0.01;                     % Frequency of the time-dependent potential
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   Define vectors to store split-step propagators in position and

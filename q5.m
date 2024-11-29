@@ -1,99 +1,128 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   Numerical simulation of the evolution of a wavepacket in a 1D harmonic
-%   trap with an added time-dependent potential using fast Fourier transform (FFT) method
-%   Potential: V(t) = A * sin(x) * cos(ω * t)
-%   Unit of energy: hbar * omega, where hbar is the Planck constant and
-%   omega is the frequency of the trap
-%   Unit of length: l = sqrt(hbar / (m * omega)), where sqrt(...) is the square
-%   root function and m is the mass of the particle
-%--------------------------------------------------------------------------
-a = -20;                       % Left end point 
-b = +20;                       % Right end point 
-L = b - a;                     % Width of the space
+clear;
+a = -20;                       % Left end point
+b = +20;                       % Right end point
+L = b-a;                        % Width of the space
 N = 512;                       % No. of cells
-X = a + L * (0:N-1) / N;       % Dimensionless coordinates
-P = (2 * pi / L) * [0:N/2-1, -N/2:-1]; % Dimensionless momentum
-T = 10 * pi;                   % Time duration of the evolution
-M = 10^3;                      % Total No. of steps in the evolution
-dt = T / M;                    % Time step
-A = 3;                         % Amplitude of the time-dependent potential
-omega = 2.5;                   % Frequency of the time-dependent potential (approximately half of natural frequency)
-
+X = a+L*(0:N-1)/N;                % Dimensionless coordinates
+P = (2*pi/L)*[0:N/2-1,-N/2:-1]; % Dimensionless momentum
+T = 20*pi;                      % Time duration of the evolution
+M = 40^3;                       % Total No. of steps in the evolution
+dt = T/M;                       % Time step
+A = 0.5;
+omega = 0.5;
+epsilon = 1e-10;                % Small value to avoid division by zero
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   Define vectors to store split-step propagators in position and
+%   Define vectors to store split step propagators in position and
 %   momentum space
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-UV = exp(-1i * (X.^2 / 2) * dt / 2);    % One-step propagator in position space (harmonic potential)
-UT = exp(-1i * (P.^2 / 2) * dt);        % One-step propagator in momentum space
-% note, hbar = 1 in our dimensionless units
-
+UV = exp(-1i*(X.^2/2)*dt/2);    % One-step propagator in position space
+UT = exp(-1i*(P.^2/2)*dt);      % One-step propagator in momentum space
+% note, hbar=1 in our dimensionless units
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   Define the initial state using Hermite polynomial (Analytical Eigenstate)
-%   We consider the initial state to be the ground state of the harmonic oscillator
-n = 0;  % Quantum number for ground state
-psi_hermite = hermiteH(n, X) .* exp(-X.^2 / 2);  % Analytical form of eigenstate
-psi = psi_hermite / sqrt(sum(abs(psi_hermite).^2));   % Normalized state
-
-plot(X, abs(psi).^2, 'DisplayName', 'Initial State');   % Plotting initial state
-legend('IC','Location','southwest')
+%   Define the initial state
+%   As a typical example, we consider the initial state to be a Gaussian
+%   wavepacket located at X0
+figure;
+set(gcf, 'Position', [100, 100, 1200, 600]);
+n = 0;
+Hn = hermiteH(n, X);
+psi_1 = (1/sqrt(2^n * factorial(n) * sqrt(pi))) * Hn .* exp(-X.^2 / 2);
+psi = psi_1 / sqrt(sum(abs(psi_1).^2)); % normalized state
+plot(X(1:N), abs(psi(1:N)).^2, 'r');   % plotting initial state
 hold on
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Full Evolution with Harmonic Oscillator and Time-Dependent Potential
-psi_0 = psi;
-P_transition_time = zeros(1, M);  % To store transition probabilities over time
+% Define target state (n=1)
+n2 = 1;
+Hn2 = hermiteH(n2, X);
+psiH_2 = (1 / sqrt(2^n2 * factorial(n2) * sqrt(pi))) * Hn2 .* exp(-X.^2 / 2);
+psiH_2 = psiH_2 / sqrt(sum(abs(psiH_2).^2));
+plot(X, abs(psiH_2).^2, 'g');
 
-% Define the first excited state using Hermite polynomial
-n_1 = 1;  % Quantum number for first excited state
-psi_hermite_1 = hermiteH(n_1, X) .* exp(-X.^2 / 2);  % Analytical form of first excited state
-psi_hermite_1 = psi_hermite_1 / sqrt(sum(abs(psi_hermite_1).^2));   % Normalized first excited state
+natural_frequency = (n2 - n) * 1;
 
-for m = 1:M
-    t = m * dt;  % Current time
-    % Update the potential propagator with the time-dependent potential
-    V_t = A * sin(X) * cos(omega * t);
-    UV_t = exp(-1i * (X.^2 / 2 + V_t) * dt / 2);  % Time-dependent potential propagator
-    % Split-step evolution
-    psi_1 = UV_t .* psi_0;           % Apply potential part (first half step)
-    phi_2 = fft(psi_1);              % Transform to momentum space
-    phi_3 = UT .* phi_2;             % Apply kinetic part
-    psi_3 = ifft(phi_3);             % Transform back to position space
-    psi_4 = UV_t .* psi_3;           % Apply potential part (second half step)    
-    psi_0 = psi_4;  % Prepare for the next cycle    
-    
-    % Calculate the transition probability to the first excited state
-    P_transition_time(m) = abs(sum(conj(psi_hermite_1) .* psi_0)).^2;
+% Define transition probability storage vectors
+transition_probabilities = zeros(1, M);
+transition_probabilities_Pert = zeros(1, M);
+transition_probabilities_SecondPert = zeros(1, M); % Adding second-order perturbation storage
+transition_probabilities_Total = zeros(1, M); % Total transition probability
+
+% Calculate prefactor for first-order perturbation theory
+prefactor = abs((A/2) * sum(conj(psiH_2) .* sin(X) .* psi))^2;
+
+% Calculate prefactor for second-order perturbation theory
+second_order_prefactor = 0;
+max_intermediate_state = 5; % Maximum intermediate state to consider for calculation
+for n1 = 1:max_intermediate_state
+    if n1 ~= n && n1 ~= n2 % Ensure intermediate state is not the same as initial or final state
+        Hn1 = hermiteH(n1, X);
+        psiH_1 = (1 / sqrt(2^n1 * factorial(n1) * sqrt(pi))) * Hn1 .* exp(-X.^2 / 2);
+        psiH_1 = psiH_1 / sqrt(sum(abs(psiH_1).^2));
+
+        % Contribution from intermediate state n1
+        matrix_element_1 = sum(conj(psiH_1) .* sin(X) .* psi);
+        matrix_element_2 = sum(conj(psiH_2) .* sin(X) .* psiH_1);
+        energy_diff = natural_frequency - (n1 - n);
+        contribution = abs(A * matrix_element_1 * matrix_element_2 / (energy_diff + epsilon))^2;
+        second_order_prefactor = second_order_prefactor + contribution;
+    end
 end
 
-psi = psi_0;  % Final state updated
+fprintf('Second-order prefactor: %.5f\n', second_order_prefactor);
 
+% Initial wave function
+psi_0 = psi;
+
+for m = 1:M
+    t = m * dt;
+    V_t = A * sin(X) * cos(omega * t);
+    UV_t = exp(-1i * (X.^2 / 2 + V_t) * dt / 2);
+    
+    % Numerical evolution
+    psi_1 = UV_t .* psi_0;
+    phi_2 = fft(psi_1);
+    phi_3 = UT .* phi_2;
+    psi_3 = ifft(phi_3);
+    psi_4 = UV_t .* psi_3;
+    psi_0 = psi_4;
+
+    % Store transition probabilities
+    transition_probabilities(m) = abs(sum(conj(psiH_2) .* psi_0))^2;
+
+    % First-order perturbation theory probability
+    transition_probabilities_Pert(m) = prefactor * abs(((exp(1i * (omega + natural_frequency) * t) - 1) / (omega + natural_frequency + epsilon)) + ((exp(1i * (natural_frequency - omega) * t) - 1) / (natural_frequency - omega + epsilon))).^2;
+    
+    % Second-order perturbation theory probability using RWA (no intermediate states considered explicitly)
+    % Using the rotating wave approximation (RWA) to focus on resonant terms
+    transition_probabilities_SecondPert(m) = second_order_prefactor *abs((exp(1i * (2 * omega) * t) - 1) / (2 * omega + epsilon)).^2;
+    
+    % Total transition probability (sum of first and second order, capped at 1)
+    transition_probabilities_Total(m) = abs(min(transition_probabilities_Pert(m) + transition_probabilities_SecondPert(m), 1));
+end
+
+psi = psi_0; % Final state update
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Plotting the final state profiles
-plot(X, abs(psi).^2, 'DisplayName', 'Full Evolution');
+% Plotting initial, target, and final states
+plot(X(1:N), abs(psi(1:N)).^2, 'b');  % Plotting the final state profile
+xlabel('X');
+ylabel('Probability Density');
+legend('Initial State(n=0)', 'Target State(n=1)', 'Final State');
+figTitle1 = sprintf('QHO 1st eigenstate Evolution with Time-Periodic Perturbation, A=%.2f, omega=%.2f', A, omega);
+title(figTitle1);
+legend('Initial State(n=0)', 'Target State(n=1)', 'Final State');
+hold off;
 
-xlabel('Position X')
-ylabel('Probability Density')
-title('Wavepacket Evolution in 1D Harmonic Trap with Time-Dependent Potential')
-legend('show', 'Location', 'southwest')
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Plotting the transition probability as a function of time
+% Plotting the transition probability over time
 figure;
-plot((1:M) * dt, P_transition_time, 'DisplayName', 'Transition Probability');
-xlabel('Time')
-ylabel('Transition Probability')
-title('Transition Probability from Ground State to First Excited State')
-legend('show')
+set(gcf, 'Position', [100, 100, 1200, 600]);
+plot((1:M) * dt, transition_probabilities, 'r'); % Numerical result
+hold on;
+plot((1:M) * dt, transition_probabilities_Pert, 'g'); % First-order perturbation
+plot((1:M) * dt, transition_probabilities_SecondPert, 'b'); % Second-order perturbation (RWA)
+xlabel('Time');
+ylabel('Transition Probability to First Excited State');
+legend('Numerical', 'First-order Perturbation Theory', 'Second-order Perturbation Theory (RWA)');
+figTitle2 = sprintf('Transition Probability from Ground State to First Excited State Over Time, A=%.2f, omega=%.2f', A, omega);
+title(figTitle2);
+hold off;
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Analysis of Two-Photon Transitions
-% When the driving frequency is approximately half the natural frequency of the harmonic oscillator (ω ≈ 0.5 * ω_0),
-% we need to consider whether transitions from the ground state to the first excited state are due to off-resonance
-% one-photon processes or due to two-photon processes.
-% 
-% If ω ≈ 0.5, the driving field is off-resonance for direct one-photon transitions between the ground and first
-% excited states. Instead, two-photon transitions may occur, where two photons combine to provide the energy
-% needed for the transition. As we increase the driving amplitude A, the probability of nonlinear processes such
-% as two-photon transitions increases. Therefore, for ω ≈ 0.5 and large A, the transitions observed are likely due
-% to two-photon processes rather than off-resonance one-photon absorption.
-%
+toc;
